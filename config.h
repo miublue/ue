@@ -76,10 +76,7 @@ static void _right(struct buffer *buf) {
   { "KEY_HOME",      movebol    }, \
   { "KEY_END",       moveeol    }, \
   { "KEY_PPAGE",     pageup     }, \
-  { "KEY_NPAGE",     pagedown   }, \
-  { "KEY_DC",        delete     }, \
-  { "KEY_BACKSPACE", backspace  }, \
-  { "^H",            backspace  }
+  { "KEY_NPAGE",     pagedown   }
 
 #define KEY_EXTRAS \
   { "x",             _ydelete   }, \
@@ -106,6 +103,7 @@ static struct key keys_normal[] = {
   { "v",             modeselect },
   { "/",             modesearch },
   { "n",             findnext   },
+  { "g",             modegoto   },
   { "V",             _selline   },
   { "D",             _delline   },
   { "^I",            indent     },
@@ -123,6 +121,9 @@ static struct key keys_insert[] = {
   { "^I",            indent     },
   { "KEY_BTAB",      unindent   },
   { "^V",            paste      },
+  { "KEY_DC",        delete     },
+  { "KEY_BACKSPACE", backspace  },
+  { "^H",            backspace  },
   KEY_DEFAULTS,
   0
 };
@@ -132,6 +133,9 @@ static struct key keys_select[] = {
   { "v",             modenormal },
   { "i",             modeinsert },
   { "a",             modeinsert },
+  { "KEY_DC",        delete     },
+  { "KEY_BACKSPACE", backspace  },
+  { "^H",            backspace  },
   KEY_DEFAULTS, KEY_EXTRAS,
   0
 };

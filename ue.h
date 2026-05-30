@@ -4,7 +4,7 @@
 #define BUFSZ 512
 struct range { int start, end; };
 enum { ACT_INSERT = 1, ACT_DELETE, ACT_BACKSPACE };
-enum { MODE_NORMAL, MODE_INSERT, MODE_SELECT, MODE_SEARCH, MODE_OPEN };
+enum { MODE_NORMAL, MODE_INSERT, MODE_SELECT, MODE_SEARCH, MODE_GOTO, MODE_OPEN };
 struct hist_action {
   int typ, sz, max, cur, off, line;
   char *text;
@@ -33,6 +33,7 @@ static void modenormal(struct buffer *buf);
 static void modeinsert(struct buffer *buf);
 static void modeselect(struct buffer *buf);
 static void modesearch(struct buffer *buf);
+static void modegoto(struct buffer *buf);
 static void modeopen(struct buffer *buf);
 static void findnext(struct buffer *buf);
 static void closebuf(struct buffer *buf);

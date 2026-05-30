@@ -7,7 +7,7 @@
 #include "ue.h"
 #include "config.h"
 
-/* TODO: commands, goto, backwards search, replace */
+/* TODO: commands, backwards search, replace */
 static struct {
   int mode, cur, sz, max, max_x, max_y;
   struct finputbox inp;
@@ -155,6 +155,7 @@ static void modenormal(struct buffer *buf) { ue.mode = MODE_NORMAL; }
 static void modeinsert(struct buffer *buf) { ue.mode = MODE_INSERT; }
 static void modeselect(struct buffer *buf) { ue.mode = MODE_SELECT, buf->sel = buf->cur; }
 static void modesearch(struct buffer *buf) { ue.mode = MODE_SEARCH; finputbox_reset(&ue.inp); }
+static void modegoto(struct buffer *buf) { ue.mode = MODE_GOTO; finputbox_reset(&ue.inp); }
 static void modeopen(struct buffer *buf) { ue.mode = MODE_OPEN; finputbox_reset(&ue.inp); }
 
 static void findnext(struct buffer *buf) {
@@ -320,6 +321,15 @@ r:if (res != FINPUTBOX_OK) modenormal(buf);
   return res;
 }
 
+static void _gotoline(struct buffer *buf) {
+  if (!ue.inp.sz) return;
+  int ln = atoi(ue.inp.buf)-1;
+  if (ln < 0 || ln >= buf->num_lines) return;
+  buf->cur = buf->off = buf->line = 0;
+  while (buf->line != ln) movedown(buf);
+  buf->sel = buf->cur;
+}
+
 static void update(struct buffer *buf) {
   int i, c = getch();
   const char *k = keyname(c);
@@ -327,6 +337,9 @@ static void update(struct buffer *buf) {
   switch (ue.mode) {
   case MODE_SEARCH:
     if (_update_input(buf, c) == FINPUTBOX_DONE) findnext(buf);
+    return;
+  case MODE_GOTO:
+    if (_update_input(buf, c) == FINPUTBOX_DONE) _gotoline(buf);
     return;
   case MODE_OPEN:
     if (_update_input(buf, c) == FINPUTBOX_DONE) createbuf(ue.inp.buf);
@@ -358,7 +371,7 @@ static void _drawline(struct buffer *buf, int lineno, int off) {
 }
 
 static void draw(struct buffer *buf) {
-  static const char *_mode[] = { "NOR", "INS", "SEL", "FND", "OPN" };
+  static const char *_mode[] = { "NOR", "INS", "SEL", "FND", "JMP", "OPN" };
   erase();
   int i, off = 0;
   curs_set(0);
