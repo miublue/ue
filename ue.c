@@ -197,10 +197,12 @@ static void _insert(struct buffer *buf, char *text, int sz) {
 }
 
 static void _delete(struct buffer *buf, int sz) {
-  if (buf->sz == 0 || buf->cur+sz >= buf->sz) return;
+  if (buf->sz == 0) return;
+  if (buf->cur+sz >= buf->sz) sz -= (buf->cur+sz-buf->sz);
   memmove(buf->text+buf->cur, buf->text+buf->cur+sz, buf->sz-buf->cur);
   buf->sz -= sz;
   _calc_numlines(buf);
+  while (buf->cur >= buf->sz) moveleft(buf);
 }
 
 static void insert(struct buffer *buf, char *text, int sz) {
@@ -356,7 +358,6 @@ e:
 }
 
 #define SEL(N) ((N) >= sel.start && (N) < sel.end)
-#define CAP(N) ((N)+1 >= ue.max_x? ue.max_x : (N))
 static void _drawline(struct buffer *buf, int lineno, int off) {
   struct range ln = buf->lines[lineno], sel = _getsel(buf);
   int i, attr = 0;
@@ -394,7 +395,6 @@ static void draw(struct buffer *buf) {
   }
 }
 #undef SEL
-#undef CAP
 
 int main(int argc, char **argv) {
   if (argc < 2) {
