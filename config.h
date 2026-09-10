@@ -6,31 +6,24 @@
 
 #define TABSIZE 2
 
-static int _isword(int c) {
-  return isalnum(c) || c == '_';
-}
-
 #define C(S,D) (((D)>0?buf->cur+1<buf->sz : buf->cur>0) && S(buf->text[buf->cur+(D)]))
+static int _isword(int c) { return isalnum(c) || c == '_'; }
 static void prevword(struct buffer *buf, int _) {
-  if(_isword(buf->text[buf->cur-1]))
-    while(C(_isword,-1)) moveleft(buf, 0);
+  if(_isword(buf->text[buf->cur-1])) while(C(_isword,-1)) moveleft(buf, 0);
   else while(C(!_isword,-1)) moveleft(buf, 0);
 }
 
 static void nextword(struct buffer *buf, int _) {
-  if(_isword(buf->text[buf->cur+1]))
-    while(C(_isword,1)) moveright(buf, 0);
+  if(_isword(buf->text[buf->cur+1])) while(C(_isword,1)) moveright(buf, 0);
   else while(C(!_isword,1)) moveright(buf, 0);
 }
 
 static void insertbol(struct buffer *buf, int _) {
-  movebol(buf, 0);
-  changemode(buf, MODE_INSERT);
+  movebol(buf, 0); changemode(buf, MODE_INSERT);
 }
 
 static void inserteol(struct buffer *buf, int _) {
-  moveeol(buf, 0);
-  changemode(buf, MODE_INSERT);
+  moveeol(buf, 0); changemode(buf, MODE_INSERT);
 }
 
 static void insertafter(struct buffer *buf, int _) {
@@ -39,24 +32,19 @@ static void insertafter(struct buffer *buf, int _) {
 }
 
 static void yankdelete(struct buffer *buf, int _) {
-  yank(buf, 0);
-  delete(buf, 0);
+  yank(buf, 0); delete(buf, 0);
 }
 
 static void yankreplace(struct buffer *buf, int _) {
-  yankdelete(buf, 0);
-  changemode(buf, MODE_INSERT);
+  yankdelete(buf, 0); changemode(buf, MODE_INSERT);
 }
 
 static void selectline(struct buffer *buf, int _) {
-  movebol(buf, 0);
-  changemode(buf, MODE_SELECT);
-  moveeol(buf, 0);
+  movebol(buf, 0); changemode(buf, MODE_SELECT); moveeol(buf, 0);
 }
 
 static void deleteline(struct buffer *buf, int _) {
-  selectline(buf, 0);
-  yankdelete(buf, 0);
+  selectline(buf, 0); yankdelete(buf, 0);
 }
 
 static void vimleft(struct buffer *buf, int _) {
@@ -112,8 +100,7 @@ static struct key keys_normal[] = {
   { "r",             redo,          0 },
   { "t",             changebuffer,  1 },
   { "T",             changebuffer, -1 },
-  KEY_DEFAULTS, KEY_EXTRAS,
-  { 0 },
+  KEY_DEFAULTS, KEY_EXTRAS, { 0 },
 };
 
 static struct key keys_insert[] = {
@@ -124,8 +111,7 @@ static struct key keys_insert[] = {
   { "KEY_DC",        delete,     0 },
   { "KEY_BACKSPACE", delete,    -1 },
   { "^H",            delete,    -1 },
-  KEY_DEFAULTS,
-  { 0 },
+  KEY_DEFAULTS, { 0 },
 };
 
 static struct key keys_select[] = {
@@ -136,8 +122,7 @@ static struct key keys_select[] = {
   { "KEY_DC",        delete,     0 },
   { "KEY_BACKSPACE", delete,    -1 },
   { "^H",            delete,    -1 },
-  KEY_DEFAULTS, KEY_EXTRAS,
-  { 0 },
+  KEY_DEFAULTS, KEY_EXTRAS, { 0 },
 };
 
 #endif

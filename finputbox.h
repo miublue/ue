@@ -2,22 +2,21 @@
 #define _FINPUTBOX_H
 
 #ifndef FINPUTBOX_BUFFER_SIZE
-#define FINPUTBOX_BUFFER_SIZE 255
+#define FINPUTBOX_BUFFER_SIZE 128
 #endif
 
 enum { FINPUTBOX_OK, FINPUTBOX_DONE, FINPUTBOX_STOP };
-
-struct finputbox {
-  int sz, cur;
-  char buf[FINPUTBOX_BUFFER_SIZE];
-};
+struct finputbox { char sz, cur, buf[FINPUTBOX_BUFFER_SIZE]; };
 
 void finputbox_reset(struct finputbox *fib);
 int finputbox_update(struct finputbox *fib);
 int finputbox_update_char(struct finputbox *fib, int c);
 void finputbox_draw(struct finputbox *fib, int x);
 
+#endif
+
 #ifdef FINPUTBOX_IMPL
+#undef FINPUTBOX_IMPL
 
 #include <ncurses.h>
 #include <string.h>
@@ -69,7 +68,5 @@ void finputbox_draw(struct finputbox *fib, int x) {
   mvprintw(max_y-1, x+fib->cur, "%c", isprint(fib->buf[fib->cur])? fib->buf[fib->cur] : ' ');
   attroff(A_REVERSE);
 }
-
-#endif
 
 #endif
