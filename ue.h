@@ -24,37 +24,29 @@ struct buffer {
 
 struct key {
   const char *key;
-  void (*action)(struct buffer *buf);
+  void (*action)(struct buffer *buf, int arg);
+  int arg;
 };
 
-static void quit(void);
-static void createbuf(char *name);
-static void modenormal(struct buffer *buf);
-static void modeinsert(struct buffer *buf);
-static void modeselect(struct buffer *buf);
-static void modesearch(struct buffer *buf);
-static void modegoto(struct buffer *buf);
-static void modeopen(struct buffer *buf);
-static void findnext(struct buffer *buf);
-static void closebuf(struct buffer *buf);
-static void writebuf(struct buffer *buf);
-static void nextbuf(struct buffer *buf);
-static void prevbuf(struct buffer *buf);
-static void delete(struct buffer *buf);
-static void backspace(struct buffer *buf);
-static void indent(struct buffer *buf);
-static void unindent(struct buffer *buf);
-static void moveup(struct buffer *buf);
-static void movedown(struct buffer *buf);
-static void moveleft(struct buffer *buf);
-static void moveright(struct buffer *buf);
-static void movebol(struct buffer *buf);
-static void moveeol(struct buffer *buf);
-static void pageup(struct buffer *buf);
-static void pagedown(struct buffer *buf);
-static void undo(struct buffer *buf);
-static void redo(struct buffer *buf);
-static void yank(struct buffer *buf);
-static void paste(struct buffer *buf);
+/* these are the functions that may be mapped to keys in config.h */
+void changemode(struct buffer *buf, int mode);
+void findnext(struct buffer *buf, int dir);
+void changebuffer(struct buffer *buf, int dir);
+void writebuffer(struct buffer *buf, int _);
+void closebuffer(struct buffer *buf, int _);
+void delete(struct buffer *buf, int dir);
+void indent(struct buffer *buf, int amount);
+void moveup(struct buffer *buf, int _);
+void movedown(struct buffer *buf, int _);
+void moveleft(struct buffer *buf, int _);
+void moveright(struct buffer *buf, int _);
+void movebol(struct buffer *buf, int _);
+void moveeol(struct buffer *buf, int _);
+void pageup(struct buffer *buf, int _);
+void pagedown(struct buffer *buf, int _);
+void undo(struct buffer *buf, int _);
+void redo(struct buffer *buf, int _);
+void yank(struct buffer *buf, int _);
+void paste(struct buffer *buf, int _);
 
 #endif

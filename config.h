@@ -11,133 +11,133 @@ static int _isword(int c) {
 }
 
 #define C(S,D) (((D)>0?buf->cur+1<buf->sz : buf->cur>0) && S(buf->text[buf->cur+(D)]))
-static void _pword(struct buffer *buf) {
+static void prevword(struct buffer *buf, int _) {
   if(_isword(buf->text[buf->cur-1]))
-    while(C(_isword,-1)) moveleft(buf);
-  else while(C(!_isword,-1)) moveleft(buf);
+    while(C(_isword,-1)) moveleft(buf, 0);
+  else while(C(!_isword,-1)) moveleft(buf, 0);
 }
 
-static void _nword(struct buffer *buf) {
+static void nextword(struct buffer *buf, int _) {
   if(_isword(buf->text[buf->cur+1]))
-    while(C(_isword,1)) moveright(buf);
-  else while(C(!_isword,1)) moveright(buf);
+    while(C(_isword,1)) moveright(buf, 0);
+  else while(C(!_isword,1)) moveright(buf, 0);
 }
 
-static void _insbol(struct buffer *buf) {
-  movebol(buf);
-  modeinsert(buf);
+static void insertbol(struct buffer *buf, int _) {
+  movebol(buf, 0);
+  changemode(buf, MODE_INSERT);
 }
 
-static void _inseol(struct buffer *buf) {
-  moveeol(buf);
-  modeinsert(buf);
+static void inserteol(struct buffer *buf, int _) {
+  moveeol(buf, 0);
+  changemode(buf, MODE_INSERT);
 }
 
-static void _insafter(struct buffer *buf) {
-  if (buf->cur < buf->lines[buf->line].end) moveright(buf);
-  modeinsert(buf);
+static void insertafter(struct buffer *buf, int _) {
+  if (buf->cur < buf->lines[buf->line].end) moveright(buf, 0);
+  changemode(buf, MODE_INSERT);
 }
 
-static void _ydelete(struct buffer *buf) {
-  yank(buf);
-  delete(buf);
+static void yankdelete(struct buffer *buf, int _) {
+  yank(buf, 0);
+  delete(buf, 0);
 }
 
-static void _yreplace(struct buffer *buf) {
-  _ydelete(buf);
-  modeinsert(buf);
+static void yankreplace(struct buffer *buf, int _) {
+  yankdelete(buf, 0);
+  changemode(buf, MODE_INSERT);
 }
 
-static void _delline(struct buffer *buf) {
-  modeselect(buf);
-  moveeol(buf);
-  _ydelete(buf);
+static void selectline(struct buffer *buf, int _) {
+  movebol(buf, 0);
+  changemode(buf, MODE_SELECT);
+  moveeol(buf, 0);
 }
 
-static void _selline(struct buffer *buf) {
-  movebol(buf);
-  modeselect(buf);
-  moveeol(buf);
+static void deleteline(struct buffer *buf, int _) {
+  selectline(buf, 0);
+  yankdelete(buf, 0);
 }
 
-static void _left(struct buffer *buf) {
-  if (buf->cur > buf->lines[buf->line].start) moveleft(buf);
+static void vimleft(struct buffer *buf, int _) {
+  if (buf->cur > buf->lines[buf->line].start) moveleft(buf, 0);
 }
 
-static void _right(struct buffer *buf) {
-  if (buf->cur < buf->lines[buf->line].end) moveright(buf);
+static void vimright(struct buffer *buf, int _) {
+  if (buf->cur < buf->lines[buf->line].end) moveright(buf, 0);
 }
 
 #define KEY_DEFAULTS \
-  { "KEY_LEFT",      _left      }, \
-  { "KEY_RIGHT",     _right     }, \
-  { "KEY_UP",        moveup     }, \
-  { "KEY_DOWN",      movedown   }, \
-  { "KEY_HOME",      movebol    }, \
-  { "KEY_END",       moveeol    }, \
-  { "KEY_PPAGE",     pageup     }, \
-  { "KEY_NPAGE",     pagedown   }
+  { "KEY_LEFT",      vimleft,     0 }, \
+  { "KEY_RIGHT",     vimright,    0 }, \
+  { "KEY_UP",        moveup,      0 }, \
+  { "KEY_DOWN",      movedown,    0 }, \
+  { "KEY_HOME",      movebol,     0 }, \
+  { "KEY_END",       moveeol,     0 }, \
+  { "KEY_PPAGE",     pageup,      0 }, \
+  { "KEY_NPAGE",     pagedown,    0 }
 
 #define KEY_EXTRAS \
-  { "x",             _ydelete   }, \
-  { "d",             _ydelete   }, \
-  { "s",             _yreplace  }, \
-  { "c",             _yreplace  }, \
-  { "y",             yank       }, \
-  { "p",             paste      }, \
-  { "b",             _pword     }, \
-  { "e",             _nword     }, \
-  { "h",             _left      }, \
-  { "l",             _right     }, \
-  { "k",             moveup     }, \
-  { "j",             movedown   }
+  { "x",             yankdelete,  0 }, \
+  { "d",             yankdelete,  0 }, \
+  { "s",             yankreplace, 0 }, \
+  { "c",             yankreplace, 0 }, \
+  { "y",             yank,        0 }, \
+  { "p",             paste,       0 }, \
+  { "b",             prevword,    0 }, \
+  { "e",             nextword,    0 }, \
+  { "h",             vimleft,     0 }, \
+  { "l",             vimright,    0 }, \
+  { "k",             moveup,      0 }, \
+  { "j",             movedown,    0 }
 
 static struct key keys_normal[] = {
-  { "q",             closebuf   },
-  { "w",             writebuf   },
-  { "o",             modeopen   },
-  { "i",             modeinsert },
-  { "a",             _insafter  },
-  { "I",             _insbol    },
-  { "A",             _inseol    },
-  { "v",             modeselect },
-  { "/",             modesearch },
-  { "n",             findnext   },
-  { "g",             modegoto   },
-  { "V",             _selline   },
-  { "D",             _delline   },
-  { "^I",            indent     },
-  { "KEY_BTAB",      unindent   },
-  { "u",             undo       },
-  { "r",             redo       },
-  { "t",             nextbuf    },
-  { "T",             prevbuf    },
+  { "q",             closebuffer,   0 },
+  { "w",             writebuffer,   0 },
+  { "o",             changemode,    MODE_OPEN },
+  { "i",             changemode,    MODE_INSERT },
+  { "a",             insertafter,   0 },
+  { "I",             insertbol,     0 },
+  { "A",             inserteol,     0 },
+  { "v",             changemode,    MODE_SELECT },
+  { "/",             changemode,    MODE_SEARCH },
+  { "n",             findnext,      1 },
+  { "N",             findnext,     -1 },
+  { "g",             changemode,    MODE_GOTO },
+  { "V",             selectline,    0 },
+  { "D",             deleteline,    0 },
+  { "^I",            indent,        1 },
+  { "KEY_BTAB",      indent,       -1 },
+  { "u",             undo,          0 },
+  { "r",             redo,          0 },
+  { "t",             changebuffer,  1 },
+  { "T",             changebuffer, -1 },
   KEY_DEFAULTS, KEY_EXTRAS,
-  0,
+  { 0 },
 };
 
 static struct key keys_insert[] = {
-  { "^[",            modenormal },
-  { "^I",            indent     },
-  { "KEY_BTAB",      unindent   },
-  { "^V",            paste      },
-  { "KEY_DC",        delete     },
-  { "KEY_BACKSPACE", backspace  },
-  { "^H",            backspace  },
+  { "^[",            changemode, MODE_NORMAL },
+  { "^I",            indent,     1 },
+  { "KEY_BTAB",      indent,    -1 },
+  { "^V",            paste,      0 },
+  { "KEY_DC",        delete,     0 },
+  { "KEY_BACKSPACE", delete,    -1 },
+  { "^H",            delete,    -1 },
   KEY_DEFAULTS,
-  0
+  { 0 },
 };
 
 static struct key keys_select[] = {
-  { "^[",            modenormal },
-  { "v",             modenormal },
-  { "i",             modeinsert },
-  { "a",             modeinsert },
-  { "KEY_DC",        delete     },
-  { "KEY_BACKSPACE", backspace  },
-  { "^H",            backspace  },
+  { "^[",            changemode, MODE_NORMAL },
+  { "v",             changemode, MODE_NORMAL },
+  { "i",             changemode, MODE_INSERT },
+  { "a",             changemode, MODE_INSERT },
+  { "KEY_DC",        delete,     0 },
+  { "KEY_BACKSPACE", delete,    -1 },
+  { "^H",            delete,    -1 },
   KEY_DEFAULTS, KEY_EXTRAS,
-  0
+  { 0 },
 };
 
 #endif
