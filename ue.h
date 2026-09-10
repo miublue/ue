@@ -5,6 +5,7 @@
 struct range { int start, end; };
 enum { ACT_INSERT = 1, ACT_DELETE, ACT_BACKSPACE };
 enum { MODE_NORMAL, MODE_INSERT, MODE_SELECT, MODE_SEARCH, MODE_GOTO, MODE_OPEN };
+enum { DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN, DIR_BOL, DIR_EOL, DIR_PAGEUP, DIR_PAGEDOWN };
 struct hist_action {
   int typ, sz, max, cur, off, line;
   char *text;
@@ -36,14 +37,7 @@ void writebuffer(struct buffer *buf, int _);
 void closebuffer(struct buffer *buf, int _);
 void delete(struct buffer *buf, int dir);
 void indent(struct buffer *buf, int amount);
-void moveup(struct buffer *buf, int _);
-void movedown(struct buffer *buf, int _);
-void moveleft(struct buffer *buf, int _);
-void moveright(struct buffer *buf, int _);
-void movebol(struct buffer *buf, int _);
-void moveeol(struct buffer *buf, int _);
-void pageup(struct buffer *buf, int _);
-void pagedown(struct buffer *buf, int _);
+void movecursor(struct buffer *buf, int dir);
 void undo(struct buffer *buf, int _);
 void redo(struct buffer *buf, int _);
 void yank(struct buffer *buf, int _);

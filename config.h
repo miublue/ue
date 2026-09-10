@@ -9,25 +9,25 @@
 #define C(S,D) (((D)>0?buf->cur+1<buf->sz : buf->cur>0) && S(buf->text[buf->cur+(D)]))
 static int _isword(int c) { return isalnum(c) || c == '_'; }
 static void prevword(struct buffer *buf, int _) {
-  if(_isword(buf->text[buf->cur-1])) while(C(_isword,-1)) moveleft(buf, 0);
-  else while(C(!_isword,-1)) moveleft(buf, 0);
+  if(_isword(buf->text[buf->cur-1])) while(C(_isword,-1)) movecursor(buf, DIR_LEFT);
+  else while(C(!_isword,-1)) movecursor(buf, DIR_LEFT);
 }
 
 static void nextword(struct buffer *buf, int _) {
-  if(_isword(buf->text[buf->cur+1])) while(C(_isword,1)) moveright(buf, 0);
-  else while(C(!_isword,1)) moveright(buf, 0);
+  if(_isword(buf->text[buf->cur+1])) while(C(_isword,1)) movecursor(buf, DIR_RIGHT);
+  else while(C(!_isword,1)) movecursor(buf, DIR_RIGHT);
 }
 
 static void insertbol(struct buffer *buf, int _) {
-  movebol(buf, 0); changemode(buf, MODE_INSERT);
+  movecursor(buf, DIR_BOL); changemode(buf, MODE_INSERT);
 }
 
 static void inserteol(struct buffer *buf, int _) {
-  moveeol(buf, 0); changemode(buf, MODE_INSERT);
+  movecursor(buf, DIR_EOL); changemode(buf, MODE_INSERT);
 }
 
 static void insertafter(struct buffer *buf, int _) {
-  if (buf->cur < buf->lines[buf->line].end) moveright(buf, 0);
+  if (buf->cur < buf->lines[buf->line].end) movecursor(buf, DIR_RIGHT);
   changemode(buf, MODE_INSERT);
 }
 
@@ -40,7 +40,7 @@ static void yankreplace(struct buffer *buf, int _) {
 }
 
 static void selectline(struct buffer *buf, int _) {
-  movebol(buf, 0); changemode(buf, MODE_SELECT); moveeol(buf, 0);
+  movecursor(buf, DIR_BOL); changemode(buf, MODE_SELECT); movecursor(buf, DIR_EOL);
 }
 
 static void deleteline(struct buffer *buf, int _) {
@@ -48,22 +48,22 @@ static void deleteline(struct buffer *buf, int _) {
 }
 
 static void vimleft(struct buffer *buf, int _) {
-  if (buf->cur > buf->lines[buf->line].start) moveleft(buf, 0);
+  if (buf->cur > buf->lines[buf->line].start) movecursor(buf, DIR_LEFT);
 }
 
 static void vimright(struct buffer *buf, int _) {
-  if (buf->cur < buf->lines[buf->line].end) moveright(buf, 0);
+  if (buf->cur < buf->lines[buf->line].end) movecursor(buf, DIR_RIGHT);
 }
 
 #define KEY_DEFAULTS \
   { "KEY_LEFT",      vimleft,     0 }, \
   { "KEY_RIGHT",     vimright,    0 }, \
-  { "KEY_UP",        moveup,      0 }, \
-  { "KEY_DOWN",      movedown,    0 }, \
-  { "KEY_HOME",      movebol,     0 }, \
-  { "KEY_END",       moveeol,     0 }, \
-  { "KEY_PPAGE",     pageup,      0 }, \
-  { "KEY_NPAGE",     pagedown,    0 }
+  { "KEY_UP",        movecursor,  DIR_UP }, \
+  { "KEY_DOWN",      movecursor,  DIR_DOWN }, \
+  { "KEY_HOME",      movecursor,  DIR_BOL }, \
+  { "KEY_END",       movecursor,  DIR_EOL }, \
+  { "KEY_PPAGE",     movecursor,  DIR_PAGEUP }, \
+  { "KEY_NPAGE",     movecursor,  DIR_PAGEDOWN }
 
 #define KEY_EXTRAS \
   { "x",             yankdelete,  0 }, \
@@ -76,8 +76,8 @@ static void vimright(struct buffer *buf, int _) {
   { "e",             nextword,    0 }, \
   { "h",             vimleft,     0 }, \
   { "l",             vimright,    0 }, \
-  { "k",             moveup,      0 }, \
-  { "j",             movedown,    0 }
+  { "k",             movecursor,  DIR_UP }, \
+  { "j",             movecursor,  DIR_DOWN }
 
 static struct key keys_normal[] = {
   { "q",             closebuffer,   0 },

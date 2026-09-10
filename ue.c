@@ -7,10 +7,8 @@
 #include "ue.h"
 #include "config.h"
 
-/*
-  TODO: commands, replace, basic macros, line selection,
-        backwards search, "save as", (un)indent whole selection
-*/
+/* TODO: commands, replace, basic macros, line selection,
+         backwards search, "save as", (un)indent whole selection */
 static struct {
   int mode, cur, sz, max, max_x, max_y;
   struct finputbox inp;
@@ -92,8 +90,7 @@ static void _calc_numlines(struct buffer *buf) {
 
 static void createbuf(char *name) {
   struct buffer buf = {0};
-  const int name_sz = strlen(name);
-  ue.mode = MODE_NORMAL, buf.name = malloc(name_sz+1);
+  ue.mode = MODE_NORMAL, buf.name = malloc(strlen(name)+1);
   strcpy(buf.name, name);
   buf.text = malloc(buf.max = BUFSZ), buf.hist.sz = buf.hist.cur = buf.hist.last = 0;
   buf.hist.acts = malloc((buf.hist.max=BUFSZ)*sizeof(struct hist_action));
@@ -121,7 +118,7 @@ static struct range _getsel(struct buffer *buf) {
 }
 
 static void _gotoselstart(struct buffer *buf) {
-  while (buf->cur > buf->sel) moveleft(buf, 0);
+  while (buf->cur > buf->sel) movecursor(buf, DIR_LEFT);
 }
 
 static void _insert(struct buffer *buf, char *text, int sz) {
@@ -130,7 +127,7 @@ static void _insert(struct buffer *buf, char *text, int sz) {
   memmove(buf->text+buf->cur, text, sz);
   buf->sz += sz;
   _calc_numlines(buf);
-  int i; for (i = 0; i < sz; ++i) moveright(buf, 0);
+  int i; for (i = 0; i < sz; ++i) movecursor(buf, DIR_RIGHT);
 }
 
 static void _delete(struct buffer *buf, int sz) {
@@ -139,7 +136,7 @@ static void _delete(struct buffer *buf, int sz) {
   memmove(buf->text+buf->cur, buf->text+buf->cur+sz, buf->sz-buf->cur);
   buf->sz -= sz;
   _calc_numlines(buf);
-  while (buf->cur >= buf->sz) moveleft(buf, 0);
+  while (buf->cur >= buf->sz) movecursor(buf, DIR_LEFT);
 }
 
 static void insert(struct buffer *buf, char *text, int sz) {
@@ -147,10 +144,6 @@ static void insert(struct buffer *buf, char *text, int sz) {
   _insert(buf, text, sz);
 }
 
-static void _fix_scroll(struct buffer *buf) {
-  if (buf->line-buf->off < 0 && buf->off > 0) --buf->off;
-  else if (buf->line-buf->off+1 >= ue.max_y) ++buf->off;
-}
 
 static int _update_input(struct buffer *buf, int c) {
   int res = FINPUTBOX_STOP;
@@ -165,7 +158,7 @@ static void _gotoline(struct buffer *buf) {
   int ln = atoi(ue.inp.buf)-1;
   if (ln < 0 || ln >= buf->num_lines) return;
   buf->cur = buf->off = buf->line = 0;
-  while (buf->line != ln) movedown(buf, 0);
+  while (buf->line != ln) movecursor(buf, DIR_DOWN);
   buf->sel = buf->cur;
 }
 
@@ -190,8 +183,7 @@ static void update(struct buffer *buf) {
   for (i = 0; keys[i].key; ++i)
     if (!strcmp(k, keys[i].key)) { keys[i].action(buf, keys[i].arg); goto e; }
   if (ue.mode == MODE_INSERT && (isprint(c) || c == '\n')) insert(buf, (char*)&c, 1);
-e:
-  if (ue.mode != MODE_SELECT) buf->sel = buf->cur;
+e:if (ue.mode != MODE_SELECT) buf->sel = buf->cur;
 }
 
 #define SEL(N) ((N) >= sel.start && (N) < sel.end)
@@ -210,17 +202,14 @@ static void _drawline(struct buffer *buf, int lineno, int off) {
 
 static void draw(struct buffer *buf) {
   static const char *_mode[] = { "NOR", "INS", "SEL", "FND", "JMP", "OPN" };
+  int i, row = buf->cur-buf->lines[buf->line].start, off = row+4>=ue.max_x? row+4-ue.max_x : 0;
   erase();
-  int i, off = 0;
   curs_set(0);
-  if (buf->cur-buf->lines[buf->line].start+4 >= ue.max_x)
-    off = buf->cur-buf->lines[buf->line].start+4-ue.max_x;
   for (i = buf->off; i < buf->num_lines; ++i)
     if (i-buf->off+1 >= ue.max_y) break; else _drawline(buf, i, off);
   if (ue.mode < MODE_SEARCH) {
     mvprintw(ue.max_y-1, 0, "%s (%d:%d) %d:%d:%d %s%s",
-      _mode[ue.mode], ue.cur+1, ue.sz,
-      buf->cur-buf->lines[buf->line].start, buf->line+1, buf->num_lines,
+      _mode[ue.mode], ue.cur+1, ue.sz, row, buf->line+1, buf->num_lines,
       buf->hist.last!=buf->hist.cur?"*":"", buf->name);
   } else {
     mvprintw(ue.max_y-1, 0, "%s ", _mode[ue.mode]);
@@ -248,13 +237,12 @@ void findnext(struct buffer *buf, int dir) {
   char *match = a? a : b;
   if (!match) return;
   if (b) buf->cur = buf->off = buf->line = 0;
-  while (buf->text+buf->cur != match) moveright(buf, 0);
+  while (buf->text+buf->cur != match) movecursor(buf, DIR_RIGHT);
   buf->sel = buf->cur;
 }
 
 void changebuffer(struct buffer *buf, int dir) {
-  ue.cur += dir;
-  if (ue.cur < 0) ue.cur = ue.sz-1;
+  if ((ue.cur += dir) < 0) ue.cur = ue.sz-1;
   else if (ue.cur >= ue.sz) ue.cur = 0;
 }
 
@@ -268,7 +256,7 @@ void writebuffer(struct buffer *buf, int _) {
 
 void closebuffer(struct buffer *buf, int _) {
   if (buf->hist.last != buf->hist.cur) {
-    mvprintw(ue.max_y-1, 0, "buffer '%s' has unsaved changes, exit anyway (y/n)?", buf->name);
+    mvprintw(ue.max_y-1, 0, "buffer '%s' has changed, exit anyway (y/n)?", buf->name);
     if (!strchr("Yy", getch())) return;
   }
   int i, b;
@@ -283,17 +271,10 @@ void closebuffer(struct buffer *buf, int _) {
 }
 
 void delete(struct buffer *buf, int dir) {
-  if (dir < 0) {
-    if (buf->sel != buf->cur) { delete(buf, 0); return; }
-    if (buf->cur == 0) return;
-    moveleft(buf, 0);
-    _doaction(buf, ACT_BACKSPACE, buf->text+buf->cur, 1);
-    _delete(buf, 1);
-    return;
-  }
+  int act = (dir < 0 && buf->sel == buf->cur)? ACT_BACKSPACE : ACT_DELETE;
   struct range sel = _getsel(buf);
-  if (buf->sel != buf->cur) _gotoselstart(buf);
-  _doaction(buf, ACT_DELETE, buf->text+buf->cur, sel.end-sel.start);
+  if (act == ACT_BACKSPACE) movecursor(buf, DIR_LEFT); else _gotoselstart(buf);
+  _doaction(buf, act, buf->text+buf->cur, sel.end-sel.start);
   _delete(buf, sel.end-sel.start);
   buf->sel = buf->cur;
   if (ue.mode == MODE_SELECT) changemode(buf, MODE_NORMAL);
@@ -301,61 +282,47 @@ void delete(struct buffer *buf, int dir) {
 
 void indent(struct buffer *buf, int amount) {
   /* TODO: add INDENT and UNINDENT actions instead of INSERT and DELETE */
-  int i, c = buf->cur;
+  int i, c = buf->cur, sz = (amount>0? amount : -amount)*TABSIZE;
+  char tab[BUFSZ];
   buf->cur = buf->sel = buf->lines[buf->line].start;
-  if (amount < 0) {
-    amount *= -1;
-    for (i = 0; i < amount*TABSIZE && strchr("\t ", buf->text[buf->cur]); ++i) delete(buf, 0);
-    buf->cur = (c-i) < buf->cur? buf->cur : c-i;
+  if (amount > 0) {
+    memset(tab, ' ', sz);
+    insert(buf, tab, sz);
+    buf->cur = c + sz;
     return;
   }
-  char tab[BUFSZ]; memset(tab, ' ', amount*TABSIZE);
-  insert(buf, tab, amount*TABSIZE);
-  buf->cur = c + amount*TABSIZE;
+  for (i = 0; i < sz && strchr("\t ", buf->text[buf->cur]); ++i) delete(buf, 0);
+  buf->cur = (c-i) < buf->cur? buf->cur : c-i;
 }
 
-void moveup(struct buffer *buf, int _) {
-  if (buf->line <= 0) { buf->line=0; return; }
-  --buf->line;
-  buf->cur -= buf->lines[buf->line].end-buf->lines[buf->line].start+1;
-  if (buf->cur > buf->lines[buf->line].end) buf->cur = buf->lines[buf->line].end;
-  _fix_scroll(buf);
-}
-
-void movedown(struct buffer *buf, int _) {
-  if (buf->line+1 >= buf->num_lines) { buf->line=buf->num_lines-1; return; }
-  buf->cur += buf->lines[buf->line].end-buf->lines[buf->line].start+1;
-  ++buf->line;
-  if (buf->cur > buf->lines[buf->line].end) buf->cur = buf->lines[buf->line].end;
-  _fix_scroll(buf);
-}
-
-void moveleft(struct buffer *buf, int _) {
-  if (buf->cur <= 0) { buf->cur=0; return; }
-  if (--buf->cur < buf->lines[buf->line].start && buf->line > 0) --buf->line;
-  _fix_scroll(buf);
-}
-
-void moveright(struct buffer *buf, int _) {
-  if (buf->cur+1 >= buf->sz) { buf->cur=buf->sz-1; return; }
-  if (++buf->cur > buf->lines[buf->line].end && buf->line < buf->num_lines) ++buf->line;
-  _fix_scroll(buf);
-}
-
-void movebol(struct buffer *buf, int _) {
-  buf->cur = buf->lines[buf->line].start;
-}
-
-void moveeol(struct buffer *buf, int _) {
-  buf->cur = buf->lines[buf->line].end;
-}
-
-void pageup(struct buffer *buf, int _) {
-  int i; for (i = 0; i < ue.max_y-2; ++i) moveup(buf, 0);
-}
-
-void pagedown(struct buffer *buf, int _) {
-  int i; for (i = 0; i < ue.max_y-2; ++i) movedown(buf, 0);
+void movecursor(struct buffer *buf, int dir) {
+  struct range cln = buf->lines[buf->line], pln = buf->line==0?cln:buf->lines[buf->line-1];
+  int i;
+  switch(dir) {
+  case DIR_BOL: buf->cur = cln.start; break;
+  case DIR_EOL: buf->cur = cln.end; break;
+  case DIR_PAGEUP: case DIR_PAGEDOWN:
+    for (i=0; i < ue.max_y-2; ++i) movecursor(buf, dir==DIR_PAGEUP?DIR_UP:DIR_DOWN);
+    return;
+  case DIR_LEFT:
+    if (--buf->cur < cln.start && buf->line > 0) --buf->line;
+    break;
+  case DIR_RIGHT:
+    if (++buf->cur > cln.end && buf->line < buf->num_lines) ++buf->line;
+    break;
+  case DIR_UP:
+    if (--buf->line < 0) buf->line = 0;
+    if ((buf->cur -= pln.end-pln.start+1) > pln.end) buf->cur = pln.end;
+    else if (buf->cur < pln.start) buf->cur = pln.start;
+    break;
+  case DIR_DOWN:
+    buf->cur += cln.end-cln.start+1;
+    if (++buf->line >= buf->num_lines) buf->line = buf->num_lines-1;
+    if (buf->cur > buf->lines[buf->line].end) buf->cur = buf->lines[buf->line].end;
+    break;
+  }
+  if (buf->line-buf->off < 0 && buf->off > 0) --buf->off;
+  else if (buf->line-buf->off+1 >= ue.max_y) ++buf->off;
 }
 
 void undo(struct buffer *buf, int _) {
