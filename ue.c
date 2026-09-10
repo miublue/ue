@@ -7,12 +7,22 @@
 #include "ue.h"
 #include "config.h"
 
-/* TODO: commands, backwards search, replace */
+/*
+  TODO: commands, replace, basic macros, line selection,
+        backwards search, "save as", (un)indent whole selection
+*/
 static struct {
   int mode, cur, sz, max, max_x, max_y;
   struct finputbox inp;
   struct buffer *buf;
 } ue;
+
+static void quit(void) {
+  free(ue.buf);
+  curs_set(1);
+  endwin();
+  exit(0);
+}
 
 static void _insert(struct buffer *buf, char *text, int sz);
 static void _delete(struct buffer *buf, int sz);
@@ -61,26 +71,6 @@ static void _undo_backspace(struct buffer *buf, struct hist_action *act) {
   int i; for (i = act->sz; i > 0; --i) _insert(buf, act->text+i-1, 1);
 }
 
-static void undo(struct buffer *buf) {
-  if (!buf->hist.cur || !buf->hist.sz) return;
-  struct hist_action act = buf->hist.acts[--buf->hist.cur];
-  switch (act.typ) {
-  case ACT_INSERT:    _undo_insert(buf, &act); break;
-  case ACT_DELETE:    _undo_delete(buf, &act); break;
-  case ACT_BACKSPACE: _undo_backspace(buf, &act); break;
-  }
-}
-
-static void redo(struct buffer *buf) {
-  if (buf->hist.cur == buf->hist.sz || !buf->hist.sz) return;
-  struct hist_action act = buf->hist.acts[buf->hist.cur++];
-  switch (act.typ) {
-  case ACT_INSERT:    _undo_delete(buf, &act); break;
-  case ACT_DELETE:    _undo_insert(buf, &act); break;
-  case ACT_BACKSPACE: _undo_insert(buf, &act); break;
-  }
-}
-
 static void _calc_newline(struct buffer *buf, struct range ln) {
   if (buf->num_lines >= buf->max_lines)
     buf->lines = realloc(buf->lines, (buf->max_lines*=1.5)*sizeof(struct range));
@@ -116,64 +106,12 @@ static void createbuf(char *name) {
   buf.text = realloc(buf.text, buf.max += buf.sz);
   fread(buf.text, buf.sz, 1, fp);
   fclose(fp);
-e:
-  if (!buf.sz) _insert(&buf, "\n", 1);
+e:if (!buf.sz) _insert(&buf, "\n", 1);
   _calc_numlines(&buf);
   finputbox_reset(&ue.inp);
   buf.cur = buf.sel = buf.off = buf.line = 0;
   if (ue.sz >= ue.max) ue.buf = realloc(ue.buf, (ue.max*=1.5)*sizeof(struct buffer));
   ue.buf[ue.sz++] = buf, ue.cur = ue.sz-1;
-}
-
-static void closebuf(struct buffer *buf) {
-  if (buf->hist.last != buf->hist.cur) {
-    mvprintw(ue.max_y-1, 0, "buffer '%s' has unsaved changes, exit anyway (y/n)?", buf->name);
-    if (!strchr("Yy", getch())) return;
-  }
-  int i, b;
-  for (i = 0; i < buf->hist.sz; ++i) free(buf->hist.acts[i].text);
-  free(buf->hist.acts);
-  free(buf->name);
-  free(buf->text);
-  for (b = 0; b < ue.sz; ++b) if (&ue.buf[b] == buf) break;
-  for (i = b; i < ue.sz-1; ++i) ue.buf[i] = ue.buf[i+1];
-  if (ue.cur >= --ue.sz) ue.cur = ue.sz-1;
-  if (!ue.sz) quit();
-}
-
-static void writebuf(struct buffer *buf) {
-  FILE *fp = fopen(buf->name, "w+");
-  if (!fp) quit();
-  fwrite(buf->text, buf->sz, 1, fp);
-  fclose(fp);
-  buf->hist.last = buf->hist.cur;
-}
-
-static void nextbuf(struct buffer *buf) { if (++ue.cur >= ue.sz) ue.cur = 0; }
-static void prevbuf(struct buffer *buf) { if (--ue.cur < 0) ue.cur = ue.sz-1; }
-static void modenormal(struct buffer *buf) { ue.mode = MODE_NORMAL; }
-static void modeinsert(struct buffer *buf) { ue.mode = MODE_INSERT; }
-static void modeselect(struct buffer *buf) { ue.mode = MODE_SELECT, buf->sel = buf->cur; }
-static void modesearch(struct buffer *buf) { ue.mode = MODE_SEARCH; finputbox_reset(&ue.inp); }
-static void modegoto(struct buffer *buf) { ue.mode = MODE_GOTO; finputbox_reset(&ue.inp); }
-static void modeopen(struct buffer *buf) { ue.mode = MODE_OPEN; finputbox_reset(&ue.inp); }
-
-static void findnext(struct buffer *buf) {
-  if (!ue.inp.sz) return;
-  char *a = strstr(buf->text+buf->cur+1, ue.inp.buf), *b = strstr(buf->text, ue.inp.buf);
-  char *match = a? a : b;
-  if (!match) return;
-  if (b) buf->cur = buf->off = buf->line = 0;
-  while (buf->text+buf->cur != match) moveright(buf);
-  buf->sel = buf->cur;
-}
-
-static void quit(void) {
-  while (ue.sz) closebuf(0);
-  free(ue.buf);
-  curs_set(1);
-  endwin();
-  exit(0);
 }
 
 static struct range _getsel(struct buffer *buf) {
@@ -184,7 +122,7 @@ static struct range _getsel(struct buffer *buf) {
 }
 
 static void _gotoselstart(struct buffer *buf) {
-  while (buf->cur > buf->sel) moveleft(buf);
+  while (buf->cur > buf->sel) moveleft(buf, 0);
 }
 
 static void _insert(struct buffer *buf, char *text, int sz) {
@@ -193,7 +131,7 @@ static void _insert(struct buffer *buf, char *text, int sz) {
   memmove(buf->text+buf->cur, text, sz);
   buf->sz += sz;
   _calc_numlines(buf);
-  int i; for (i = 0; i < sz; ++i) moveright(buf);
+  int i; for (i = 0; i < sz; ++i) moveright(buf, 0);
 }
 
 static void _delete(struct buffer *buf, int sz) {
@@ -202,7 +140,7 @@ static void _delete(struct buffer *buf, int sz) {
   memmove(buf->text+buf->cur, buf->text+buf->cur+sz, buf->sz-buf->cur);
   buf->sz -= sz;
   _calc_numlines(buf);
-  while (buf->cur >= buf->sz) moveleft(buf);
+  while (buf->cur >= buf->sz) moveleft(buf, 0);
 }
 
 static void insert(struct buffer *buf, char *text, int sz) {
@@ -210,116 +148,16 @@ static void insert(struct buffer *buf, char *text, int sz) {
   _insert(buf, text, sz);
 }
 
-static void delete(struct buffer *buf) {
-  struct range sel = _getsel(buf);
-  if (buf->sel != buf->cur) _gotoselstart(buf);
-  _doaction(buf, ACT_DELETE, buf->text+buf->cur, sel.end-sel.start);
-  _delete(buf, sel.end-sel.start);
-  buf->sel = buf->cur;
-  if (ue.mode == MODE_SELECT) modenormal(buf);
-}
-
-static void backspace(struct buffer *buf) {
-  if (buf->sel != buf->cur) { delete(buf); return; }
-  if (buf->cur == 0) return;
-  moveleft(buf);
-  _doaction(buf, ACT_BACKSPACE, buf->text+buf->cur, 1);
-  _delete(buf, 1);
-}
-
 static void _fix_scroll(struct buffer *buf) {
   if (buf->line-buf->off < 0 && buf->off > 0) --buf->off;
   else if (buf->line-buf->off+1 >= ue.max_y) ++buf->off;
-}
-
-static void moveup(struct buffer *buf) {
-  if (buf->line <= 0) { buf->line=0; return; }
-  --buf->line;
-  buf->cur -= buf->lines[buf->line].end-buf->lines[buf->line].start+1;
-  if (buf->cur > buf->lines[buf->line].end) buf->cur = buf->lines[buf->line].end;
-  _fix_scroll(buf);
-}
-
-static void movedown(struct buffer *buf) {
-  if (buf->line+1 >= buf->num_lines) { buf->line=buf->num_lines-1; return; }
-  buf->cur += buf->lines[buf->line].end-buf->lines[buf->line].start+1;
-  ++buf->line;
-  if (buf->cur > buf->lines[buf->line].end) buf->cur = buf->lines[buf->line].end;
-  _fix_scroll(buf);
-}
-
-static void moveleft(struct buffer *buf) {
-  if (buf->cur <= 0) { buf->cur=0; return; }
-  if (--buf->cur < buf->lines[buf->line].start && buf->line > 0) --buf->line;
-  _fix_scroll(buf);
-}
-
-static void moveright(struct buffer *buf) {
-  if (buf->cur+1 >= buf->sz) { buf->cur=buf->sz-1; return; }
-  if (++buf->cur > buf->lines[buf->line].end && buf->line < buf->num_lines) ++buf->line;
-  _fix_scroll(buf);
-}
-
-static void movebol(struct buffer *buf) {
-  buf->cur = buf->lines[buf->line].start;
-}
-
-static void moveeol(struct buffer *buf) {
-  buf->cur = buf->lines[buf->line].end;
-}
-
-static void pageup(struct buffer *buf) {
-  int i; for (i = 0; i < ue.max_y-2; ++i) moveup(buf);
-}
-
-static void pagedown(struct buffer *buf) {
-  int i; for (i = 0; i < ue.max_y-2; ++i) movedown(buf);
-}
-
-static void indent(struct buffer *buf) {
-  int c = buf->cur;
-  buf->cur = buf->sel = buf->lines[buf->line].start;
-  char tab[TABSIZE]; memset(tab, ' ', TABSIZE);
-  insert(buf, tab, TABSIZE);
-  buf->cur = c + TABSIZE;
-}
-
-static void unindent(struct buffer *buf) {
-  int i, c = buf->cur;
-  buf->cur = buf->sel = buf->lines[buf->line].start;
-  for (i = 0; i < TABSIZE && strchr("\t ", buf->text[buf->cur]); ++i) delete(buf);
-  buf->cur = (c-i) < buf->cur? buf->cur : c-i;
-}
-
-static void yank(struct buffer *buf) {
-  struct range sel = _getsel(buf);
-  FILE *fp = fopen("/tmp/uesel", "w+");
-  if (!fp) return;
-  fwrite(buf->text+sel.start, sel.end-sel.start, 1, fp);
-  fclose(fp);
-#ifdef USE_X11
-  system("cat /tmp/uesel | xsel -b 2> /dev/null");
-#endif
-  modenormal(buf);
-}
-
-static void paste(struct buffer *buf) {
-  if (buf->sel != buf->cur) delete(buf);
-#ifdef USE_X11
-  if (system("xsel -b -o > /tmp/uesel 2> /dev/null") != 0) return;
-#endif
-  int cur = ue.cur;
-  createbuf("/tmp/uesel");
-  insert(buf, ue.buf[ue.cur].text, ue.buf[ue.cur].sz);
-  closebuf(&ue.buf[ue.cur]);
-  ue.cur = cur;
 }
 
 static int _update_input(struct buffer *buf, int c) {
   int res = FINPUTBOX_STOP;
   if (c == 27) goto r;
   res = finputbox_update_char(&ue.inp, c);
-r:if (res != FINPUTBOX_OK) modenormal(buf);
+r:if (res != FINPUTBOX_OK) changemode(buf, MODE_NORMAL);
   return res;
 }
 
@@ -328,7 +166,7 @@ static void _gotoline(struct buffer *buf) {
   int ln = atoi(ue.inp.buf)-1;
   if (ln < 0 || ln >= buf->num_lines) return;
   buf->cur = buf->off = buf->line = 0;
-  while (buf->line != ln) movedown(buf);
+  while (buf->line != ln) movedown(buf, 0);
   buf->sel = buf->cur;
 }
 
@@ -338,7 +176,7 @@ static void update(struct buffer *buf) {
   struct key *keys;
   switch (ue.mode) {
   case MODE_SEARCH:
-    if (_update_input(buf, c) == FINPUTBOX_DONE) findnext(buf);
+    if (_update_input(buf, c) == FINPUTBOX_DONE) findnext(buf, 0);
     return;
   case MODE_GOTO:
     if (_update_input(buf, c) == FINPUTBOX_DONE) _gotoline(buf);
@@ -351,7 +189,7 @@ static void update(struct buffer *buf) {
   default: keys = keys_normal; break;
   }
   for (i = 0; keys[i].key; ++i)
-    if (!strcmp(k, keys[i].key)) { keys[i].action(buf); goto e; }
+    if (!strcmp(k, keys[i].key)) { keys[i].action(buf, keys[i].arg); goto e; }
   if (ue.mode == MODE_INSERT && (isprint(c) || c == '\n')) insert(buf, (char*)&c, 1);
 e:
   if (ue.mode != MODE_SELECT) buf->sel = buf->cur;
@@ -395,6 +233,175 @@ static void draw(struct buffer *buf) {
   }
 }
 #undef SEL
+
+void changemode(struct buffer *buf, int mode) {
+  switch (ue.mode = mode) {
+  default: break;
+  case MODE_SELECT: buf->sel = buf->cur; break;
+  case MODE_SEARCH: case MODE_GOTO: case MODE_OPEN:
+    finputbox_reset(&ue.inp); break;
+  }
+}
+
+void findnext(struct buffer *buf, int dir) {
+  /* TODO: search backwards when dir < 0 */
+  if (!ue.inp.sz) return;
+  char *a = strstr(buf->text+buf->cur+1, ue.inp.buf), *b = strstr(buf->text, ue.inp.buf);
+  char *match = a? a : b;
+  if (!match) return;
+  if (b) buf->cur = buf->off = buf->line = 0;
+  while (buf->text+buf->cur != match) moveright(buf, 0);
+  buf->sel = buf->cur;
+}
+
+void changebuffer(struct buffer *buf, int dir) {
+  ue.cur += dir;
+  if (ue.cur < 0) ue.cur = ue.sz-1;
+  else if (ue.cur >= ue.sz) ue.cur = 0;
+}
+
+void writebuffer(struct buffer *buf, int _) {
+  FILE *fp = fopen(buf->name, "w+");
+  if (!fp) quit();
+  fwrite(buf->text, buf->sz, 1, fp);
+  fclose(fp);
+  buf->hist.last = buf->hist.cur;
+}
+
+void closebuffer(struct buffer *buf, int _) {
+  if (buf->hist.last != buf->hist.cur) {
+    mvprintw(ue.max_y-1, 0, "buffer '%s' has unsaved changes, exit anyway (y/n)?", buf->name);
+    if (!strchr("Yy", getch())) return;
+  }
+  int i, b;
+  for (i = 0; i < buf->hist.sz; ++i) free(buf->hist.acts[i].text);
+  free(buf->hist.acts);
+  free(buf->name);
+  free(buf->text);
+  for (b = 0; b < ue.sz; ++b) if (&ue.buf[b] == buf) break;
+  for (i = b; i < ue.sz-1; ++i) ue.buf[i] = ue.buf[i+1];
+  if (ue.cur >= --ue.sz) ue.cur = ue.sz-1;
+  if (!ue.sz) quit();
+}
+
+void delete(struct buffer *buf, int dir) {
+  if (dir < 0) {
+    if (buf->sel != buf->cur) { delete(buf, 0); return; }
+    if (buf->cur == 0) return;
+    moveleft(buf, 0);
+    _doaction(buf, ACT_BACKSPACE, buf->text+buf->cur, 1);
+    _delete(buf, 1);
+    return;
+  }
+  struct range sel = _getsel(buf);
+  if (buf->sel != buf->cur) _gotoselstart(buf);
+  _doaction(buf, ACT_DELETE, buf->text+buf->cur, sel.end-sel.start);
+  _delete(buf, sel.end-sel.start);
+  buf->sel = buf->cur;
+  if (ue.mode == MODE_SELECT) changemode(buf, MODE_NORMAL);
+}
+
+void indent(struct buffer *buf, int amount) {
+  int i, c = buf->cur;
+  buf->cur = buf->sel = buf->lines[buf->line].start;
+  if (amount < 0) {
+    amount *= -1;
+    for (i = 0; i < amount*TABSIZE && strchr("\t ", buf->text[buf->cur]); ++i) delete(buf, 0);
+    buf->cur = (c-i) < buf->cur? buf->cur : c-i;
+    return;
+  }
+  char tab[BUFSZ]; memset(tab, ' ', amount*TABSIZE);
+  insert(buf, tab, amount*TABSIZE);
+  buf->cur = c + amount*TABSIZE;
+}
+
+void moveup(struct buffer *buf, int _) {
+  if (buf->line <= 0) { buf->line=0; return; }
+  --buf->line;
+  buf->cur -= buf->lines[buf->line].end-buf->lines[buf->line].start+1;
+  if (buf->cur > buf->lines[buf->line].end) buf->cur = buf->lines[buf->line].end;
+  _fix_scroll(buf);
+}
+
+void movedown(struct buffer *buf, int _) {
+  if (buf->line+1 >= buf->num_lines) { buf->line=buf->num_lines-1; return; }
+  buf->cur += buf->lines[buf->line].end-buf->lines[buf->line].start+1;
+  ++buf->line;
+  if (buf->cur > buf->lines[buf->line].end) buf->cur = buf->lines[buf->line].end;
+  _fix_scroll(buf);
+}
+
+void moveleft(struct buffer *buf, int _) {
+  if (buf->cur <= 0) { buf->cur=0; return; }
+  if (--buf->cur < buf->lines[buf->line].start && buf->line > 0) --buf->line;
+  _fix_scroll(buf);
+}
+
+void moveright(struct buffer *buf, int _) {
+  if (buf->cur+1 >= buf->sz) { buf->cur=buf->sz-1; return; }
+  if (++buf->cur > buf->lines[buf->line].end && buf->line < buf->num_lines) ++buf->line;
+  _fix_scroll(buf);
+}
+
+void movebol(struct buffer *buf, int _) {
+  buf->cur = buf->lines[buf->line].start;
+}
+
+void moveeol(struct buffer *buf, int _) {
+  buf->cur = buf->lines[buf->line].end;
+}
+
+void pageup(struct buffer *buf, int _) {
+  int i; for (i = 0; i < ue.max_y-2; ++i) moveup(buf, 0);
+}
+
+void pagedown(struct buffer *buf, int _) {
+  int i; for (i = 0; i < ue.max_y-2; ++i) movedown(buf, 0);
+}
+
+void undo(struct buffer *buf, int _) {
+  if (!buf->hist.cur || !buf->hist.sz) return;
+  struct hist_action act = buf->hist.acts[--buf->hist.cur];
+  switch (act.typ) {
+  case ACT_INSERT:    _undo_insert(buf, &act); break;
+  case ACT_DELETE:    _undo_delete(buf, &act); break;
+  case ACT_BACKSPACE: _undo_backspace(buf, &act); break;
+  }
+}
+
+void redo(struct buffer *buf, int _) {
+  if (buf->hist.cur == buf->hist.sz || !buf->hist.sz) return;
+  struct hist_action act = buf->hist.acts[buf->hist.cur++];
+  switch (act.typ) {
+  case ACT_INSERT:    _undo_delete(buf, &act); break;
+  case ACT_DELETE:    _undo_insert(buf, &act); break;
+  case ACT_BACKSPACE: _undo_insert(buf, &act); break;
+  }
+}
+
+void yank(struct buffer *buf, int _) {
+  struct range sel = _getsel(buf);
+  FILE *fp = fopen("/tmp/uesel", "w+");
+  if (!fp) return;
+  fwrite(buf->text+sel.start, sel.end-sel.start, 1, fp);
+  fclose(fp);
+#ifdef USE_X11
+  system("cat /tmp/uesel | xsel -b 2> /dev/null");
+#endif
+  changemode(buf, MODE_NORMAL);
+}
+
+void paste(struct buffer *buf, int _) {
+  if (buf->sel != buf->cur) delete(buf, 0);
+#ifdef USE_X11
+  if (system("xsel -b -o > /tmp/uesel 2> /dev/null") != 0) return;
+#endif
+  int cur = ue.cur;
+  createbuf("/tmp/uesel");
+  insert(buf, ue.buf[ue.cur].text, ue.buf[ue.cur].sz);
+  closebuffer(&ue.buf[ue.cur], 0);
+  ue.cur = cur;
+}
 
 int main(int argc, char **argv) {
   if (argc < 2) {
