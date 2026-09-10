@@ -95,8 +95,7 @@ static void createbuf(char *name) {
   const int name_sz = strlen(name);
   ue.mode = MODE_NORMAL, buf.name = malloc(name_sz+1);
   strcpy(buf.name, name);
-  buf.text = malloc(buf.max = BUFSZ);
-  buf.hist.sz = buf.hist.cur = buf.hist.last = 0;
+  buf.text = malloc(buf.max = BUFSZ), buf.hist.sz = buf.hist.cur = buf.hist.last = 0;
   buf.hist.acts = malloc((buf.hist.max=BUFSZ)*sizeof(struct hist_action));
   FILE *fp = fopen(buf.name, "r");
   if (!fp) goto e;
@@ -238,8 +237,7 @@ void changemode(struct buffer *buf, int mode) {
   switch (ue.mode = mode) {
   default: break;
   case MODE_SELECT: buf->sel = buf->cur; break;
-  case MODE_SEARCH: case MODE_GOTO: case MODE_OPEN:
-    finputbox_reset(&ue.inp); break;
+  case MODE_SEARCH: case MODE_GOTO: case MODE_OPEN: finputbox_reset(&ue.inp); break;
   }
 }
 
@@ -302,6 +300,7 @@ void delete(struct buffer *buf, int dir) {
 }
 
 void indent(struct buffer *buf, int amount) {
+  /* TODO: add INDENT and UNINDENT actions instead of INSERT and DELETE */
   int i, c = buf->cur;
   buf->cur = buf->sel = buf->lines[buf->line].start;
   if (amount < 0) {
