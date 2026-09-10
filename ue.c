@@ -117,10 +117,6 @@ static struct range _getsel(struct buffer *buf) {
   };
 }
 
-static void _gotoselstart(struct buffer *buf) {
-  while (buf->cur > buf->sel) movecursor(buf, DIR_LEFT);
-}
-
 static void _insert(struct buffer *buf, char *text, int sz) {
   if (buf->sz+sz >= buf->max) buf->text = realloc(buf->text, (buf->max+=sz+BUFSZ));
   memmove(buf->text+buf->cur+sz, buf->text+buf->cur, buf->sz-buf->cur);
@@ -144,15 +140,6 @@ static void insert(struct buffer *buf, char *text, int sz) {
   _insert(buf, text, sz);
 }
 
-
-static int _update_input(struct buffer *buf, int c) {
-  int res = FINPUTBOX_STOP;
-  if (c == 27) goto r;
-  res = finputbox_update_char(&ue.inp, c);
-r:if (res != FINPUTBOX_OK) changemode(buf, MODE_NORMAL);
-  return res;
-}
-
 static void _gotoline(struct buffer *buf) {
   if (!ue.inp.sz) return;
   int ln = atoi(ue.inp.buf)-1;
@@ -160,6 +147,14 @@ static void _gotoline(struct buffer *buf) {
   buf->cur = buf->off = buf->line = 0;
   while (buf->line != ln) movecursor(buf, DIR_DOWN);
   buf->sel = buf->cur;
+}
+
+static int _update_input(struct buffer *buf, int c) {
+  int res = FINPUTBOX_STOP;
+  if (c == 27) goto r;
+  res = finputbox_update_char(&ue.inp, c);
+r:if (res != FINPUTBOX_OK) changemode(buf, MODE_NORMAL);
+  return res;
 }
 
 static void update(struct buffer *buf) {
@@ -271,9 +266,10 @@ void closebuffer(struct buffer *buf, int _) {
 }
 
 void delete(struct buffer *buf, int dir) {
-  int act = (dir < 0 && buf->sel == buf->cur)? ACT_BACKSPACE : ACT_DELETE;
+  const int act = (dir < 0 && buf->sel == buf->cur)? ACT_BACKSPACE : ACT_DELETE;
   struct range sel = _getsel(buf);
-  if (act == ACT_BACKSPACE) movecursor(buf, DIR_LEFT); else _gotoselstart(buf);
+  if (act == ACT_BACKSPACE) movecursor(buf, DIR_LEFT);
+  while (buf->cur > buf->sel) movecursor(buf, DIR_LEFT);
   _doaction(buf, act, buf->text+buf->cur, sel.end-sel.start);
   _delete(buf, sel.end-sel.start);
   buf->sel = buf->cur;
