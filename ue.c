@@ -373,7 +373,7 @@ int main(int argc, char **argv) {
   ue.buf = malloc((ue.max=BUFSZ)*sizeof(struct buffer)), ue.usex11=USE_X11;
   int i; for (i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-x") || !strcmp(argv[i], "-xsel")) ue.usex11=!ue.usex11;
-    else if (argv[i][0] == '-') _usage(argv[0], strcmp(argv[i], "-h")==0);
+    else if (argv[i][0] == '-') _usage(argv[0], strcmp(argv[i], "-h")!=0);
     else createbuf(argv[i]);
   }
   initscr(); noecho(); raw(); keypad(stdscr, TRUE); set_escdelay(20);
