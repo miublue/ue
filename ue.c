@@ -10,7 +10,7 @@
 /* TODO: commands, replace, basic macros, line selection,
          backwards search, "save as", (un)indent whole selection */
 static struct {
-  int mode, cur, sz, max, max_x, max_y;
+  int mode, cur, sz, max, max_x, max_y, usex11;
   struct finputbox inp;
   struct buffer *buf;
 } ue;
@@ -355,9 +355,7 @@ void yank(struct buffer *buf, int _) {
 
 void paste(struct buffer *buf, int _) {
   if (buf->sel != buf->cur) delete(buf, 0);
-#ifdef USE_X11
-  if (system("xsel -b -o > /tmp/uesel 2> /dev/null") != 0) return;
-#endif
+  if (ue.usex11) (void)system("xsel -b -o > /tmp/uesel 2> /dev/null");
   int cur = ue.cur;
   createbuf("/tmp/uesel");
   insert(buf, ue.buf[ue.cur].text, ue.buf[ue.cur].sz);
@@ -365,17 +363,22 @@ void paste(struct buffer *buf, int _) {
   ue.cur = cur;
 }
 
+void _usage(const char *prg, int err) {
+  printf("usage: %s [-x | -h] <file> [file1 ...]\n", prg);
+  exit(err);
+}
+
 int main(int argc, char **argv) {
-  if (argc < 2) {
-    fprintf(stderr, "usage: %s <file> [file1 ...]\n", argv[0]);
-    return 1;
+  if (argc < 2) _usage(argv[0], 1);
+  ue.buf = malloc((ue.max=BUFSZ)*sizeof(struct buffer)), ue.usex11=USE_X11;
+  int i; for (i = 1; i < argc; ++i) {
+    if (!strcmp(argv[i], "-x") || !strcmp(argv[i], "-xsel")) ue.usex11=!ue.usex11;
+    else if (argv[i][0] == '-') _usage(argv[0], strcmp(argv[i], "-h")==0);
+    else createbuf(argv[i]);
   }
-  ue.buf = malloc((ue.max=BUFSZ)*sizeof(struct buffer));
-  initscr(); noecho(); raw(); keypad(stdscr, TRUE);
-  set_escdelay(20);
+  initscr(); noecho(); raw(); keypad(stdscr, TRUE); set_escdelay(20);
   define_key("\033[1~", KEY_HOME);
   define_key("\033[4~", KEY_END);
-  int i; for (i = 1; i < argc; ++i) createbuf(argv[i]);
   for (;;) {
     getmaxyx(stdscr, ue.max_y, ue.max_x);
     draw(&ue.buf[ue.cur]);
